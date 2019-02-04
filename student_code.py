@@ -128,7 +128,37 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact_or_rule])
         ####################################################
         # Student code goes here
-        
+
+        # Determine fact_or_rule is a fact or a rule
+        # Then locate the fact_or_rule
+        if isinstance(fact_or_rule, Fact):
+            fr = self.facts[self.facts.index(fact_or_rule)]
+            if fr.supported_by:
+                return
+            self.facts.remove(fact_or_rule)
+            
+        if isinstance(fact_or_rule, Rule):
+            fr = self.rules[self.rules.index(fact_or_rule)]
+            if fr.asserted:
+                return
+            if fr.supported_by:
+                return
+            self.rules.remove(fact_or_rule)
+
+        for fact in fr.supports_facts:
+            for pair in fact.supported_by:
+                if fr in pair:
+                    fact.supported_by.remove(pair)
+            if not fact.supported_by and not fact.asserted:
+                self.kb_retract(fact)
+
+        for rule in fr.supports_rules:
+            for pair in rule.supported_by:
+                if fr in pair:
+                    rule.supported_by.remove(pair)
+            if not rule.supported_by and not rule.asserted:
+                self.kb_retract(rule)
+
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -146,3 +176,24 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+
+        bindings = match(fact.statement, rule.lhs[0])
+        if bindings:
+            left = []
+            right = instantiate(rule.rhs, bindings)
+
+            for i in range(1, len(rule.lhs)):
+                left.append(instantiate(rule.lhs[i], bindings))
+
+            # infer new rule
+            if left:
+                R = Rule([left, right], supported_by = [(fact, rule)])
+                fact.supports_rules.append(R)
+                rule.supports_rules.append(R)
+                kb.kb_add(R)
+            # infer new Fact
+            else:
+                F = Fact(right, supported_by = [(fact, rule)])
+                fact.supports_facts.append(F)
+                rule.supports_facts.append(F)
+                kb.kb_add(F)
